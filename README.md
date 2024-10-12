@@ -61,4 +61,4 @@ The machine learning model is hosted on AWS SageMaker as a RESTful endpoint.
 ---
 
 ### **How to Run This Project Locally**:
-(to be established)
+(TBD)
