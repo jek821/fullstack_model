@@ -5,11 +5,7 @@ const path = require('path');
 const classifyRoute = require('./routes/classify');
 
 require('dotenv').config({ path: './backend/.env' });
-console.log({
-    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
-    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
-    AWS_REGION: process.env.AWS_REGION,
-});
+
 
 
 const app = express();

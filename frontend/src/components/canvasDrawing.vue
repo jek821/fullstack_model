@@ -127,7 +127,7 @@ export default {
             try {
                 // Send the Base64 image to the backend
                 const response = await axios.post(
-                    "http://localhost:8000/classify",
+                    "/classify",
                     { image: imageBase64 },
                     {
                         headers: {
