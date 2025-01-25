@@ -1,0 +1,13 @@
+{
+  "name": "fullstack_model",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "build": "cd frontend && pnpm build",
+    "start": "node backend/app.js"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC"
+}
