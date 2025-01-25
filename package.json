@@ -4,7 +4,7 @@
   "description": "",
   "main": "index.js",
   "scripts": {
-    "build": "cd frontend && pnpm build",
+    "build": "cd frontend && pnpm install && pnpm build",
     "start": "node backend/app.js"
   },
   "keywords": [],
