@@ -37,6 +37,5 @@ pnpm-lock.yaml
 yarn.lock
 
 # Assets and binary files
-*.png
 *.jpg
 *.jpeg
