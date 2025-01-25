@@ -1,22 +1,37 @@
 const express = require('express');
 const cors = require('cors');
 const bodyParser = require('body-parser');
+const path = require('path');
 const classifyRoute = require('./routes/classify');
 
-require('dotenv').config();
+require('dotenv').config({ path: './backend/.env' });
+console.log({
+    AWS_ACCESS_KEY_ID: process.env.AWS_ACCESS_KEY_ID,
+    AWS_SECRET_ACCESS_KEY: process.env.AWS_SECRET_ACCESS_KEY,
+    AWS_REGION: process.env.AWS_REGION,
+});
+
 
 const app = express();
-const PORT = process.env.PORT
+const PORT = process.env.PORT || 8000;
 
 // Middleware
 app.use(cors());
 app.use(bodyParser.json());
 
+// Serve static files from the frontend
+app.use(express.static(path.join(__dirname, '../frontend/dist')));
+
 // API Routes
 app.use('/classify', classifyRoute);
 
+// Catch-all route for serving the frontend's index.html
+// This ensures Vue/React SPA routes work properly
+app.get('*', (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+});
 
-// Catch-all for unhandled routes
+// Catch-all for unhandled routes (non-frontend)
 app.use((req, res, next) => {
     res.status(404).json({ error: 'Route not found' });
 });

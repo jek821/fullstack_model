@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "build": "cd frontend && pnpm install && pnpm build && cd ../backend && pnpm install",
-    "start": "node backend/app.js"
+    "start": "cd backend && pnpm start"
   },
   "keywords": [],
   "author": "",
