@@ -1,9 +1,27 @@
 <template>
     <div class="container">
         <div class="canvas-container">
-            <canvas ref="displayCanvas" id="displayCanvas" width="560" height="280" @mousedown="startDrawing"
-                @mousemove="draw" @mouseup="stopDrawing" @mouseleave="stopDrawing"></canvas>
-            <canvas ref="hiddenCanvas" id="hiddenCanvas" width="280" height="140" style="display: none"></canvas>
+            <canvas 
+                ref="displayCanvas" 
+                id="displayCanvas" 
+                :width="canvasWidth" 
+                :height="canvasHeight"
+                @mousedown="startDrawing"
+                @mousemove="draw"
+                @mouseup="stopDrawing"
+                @mouseleave="stopDrawing"
+                @touchstart="handleTouchStart"
+                @touchmove="handleTouchMove"
+                @touchend="stopDrawing"
+                @touchcancel="stopDrawing"
+            ></canvas>
+            <canvas 
+                ref="hiddenCanvas" 
+                id="hiddenCanvas" 
+                :width="hiddenWidth" 
+                :height="hiddenHeight" 
+                style="display: none"
+            ></canvas>
             <div class="buttons">
                 <button @click="clearCanvas">Clear</button>
                 <button @click="transcribeText">Transcribe</button>
@@ -32,10 +50,10 @@ export default {
             drawing: false,
             lastX: 0,
             lastY: 0,
-            DISPLAY_WIDTH: 560,
-            DISPLAY_HEIGHT: 280,
-            HIDDEN_WIDTH: 280,
-            HIDDEN_HEIGHT: 140,
+            canvasWidth: 560,
+            canvasHeight: 280,
+            hiddenWidth: 280,
+            hiddenHeight: 140,
             SCALE_FACTOR: 2,
         };
     },
@@ -44,10 +62,16 @@ export default {
             const ctx = canvas.getContext("2d");
             ctx.fillStyle = "white";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
-            ctx.lineWidth = 10;
+            ctx.lineWidth = this.getScaledLineWidth();
             ctx.lineCap = "round";
             ctx.strokeStyle = "black";
             return ctx;
+        },
+        getScaledLineWidth() {
+            // Adjust line width based on device pixel ratio and screen size
+            const baseWidth = 10;
+            const scale = window.devicePixelRatio || 1;
+            return Math.max(baseWidth / scale, 4);
         },
         clearCanvas() {
             const displayCtx = this.$refs.displayCanvas.getContext("2d");
@@ -56,17 +80,36 @@ export default {
             displayCtx.fillStyle = "white";
             hiddenCtx.fillStyle = "white";
 
-            displayCtx.fillRect(0, 0, this.DISPLAY_WIDTH, this.DISPLAY_HEIGHT);
-            hiddenCtx.fillRect(0, 0, this.HIDDEN_WIDTH, this.HIDDEN_HEIGHT);
+            displayCtx.fillRect(0, 0, this.canvasWidth, this.canvasHeight);
+            hiddenCtx.fillRect(0, 0, this.hiddenWidth, this.hiddenHeight);
 
-            // Reset the drawing styles
-            displayCtx.lineWidth = 10;
-            displayCtx.lineCap = "round";
-            displayCtx.strokeStyle = "black";
+            this.result = { lines: [] };
+        },
+        handleTouchStart(event) {
+            event.preventDefault(); // Prevent scrolling
+            const touch = event.touches[0];
+            const rect = this.$refs.displayCanvas.getBoundingClientRect();
+            this.lastX = touch.clientX - rect.left;
+            this.lastY = touch.clientY - rect.top;
+            this.drawing = true;
+        },
+        handleTouchMove(event) {
+            event.preventDefault(); // Prevent scrolling
+            if (!this.drawing) return;
+            
+            const touch = event.touches[0];
+            const rect = this.$refs.displayCanvas.getBoundingClientRect();
+            const currentX = touch.clientX - rect.left;
+            const currentY = touch.clientY - rect.top;
+            
+            const displayCtx = this.$refs.displayCanvas.getContext("2d");
+            displayCtx.beginPath();
+            displayCtx.moveTo(this.lastX, this.lastY);
+            displayCtx.lineTo(currentX, currentY);
+            displayCtx.stroke();
 
-            this.result = {
-                lines: [],
-            };
+            this.lastX = currentX;
+            this.lastY = currentY;
         },
         startDrawing(event) {
             this.drawing = true;
@@ -101,27 +144,20 @@ export default {
             const hiddenCanvas = this.$refs.hiddenCanvas;
             const hiddenCtx = hiddenCanvas.getContext("2d");
 
-            // Clear hidden canvas
             hiddenCtx.fillStyle = "white";
             hiddenCtx.fillRect(0, 0, hiddenCanvas.width, hiddenCanvas.height);
 
-            // Scale down the entire display canvas to hidden canvas size
             hiddenCtx.drawImage(
                 displayCanvas,
-                0, 0, // Source x, y
-                this.DISPLAY_WIDTH, this.DISPLAY_HEIGHT, // Source width and height
-                0, 0, // Destination x, y
-                this.HIDDEN_WIDTH, this.HIDDEN_HEIGHT // Destination width and height
+                0, 0, displayCanvas.width, displayCanvas.height,
+                0, 0, hiddenCanvas.width, hiddenCanvas.height
             );
         },
         async transcribeText() {
             const hiddenCanvas = this.$refs.hiddenCanvas;
-
-            // Convert the canvas to Base64
             const imageBase64 = hiddenCanvas.toDataURL("image/png").split(",")[1];
 
             try {
-                // Send the Base64 image to the backend
                 const response = await axios.post(
                     "/classify",
                     { image: imageBase64 },
@@ -132,22 +168,43 @@ export default {
                     }
                 );
 
-                // Update result based on the response from the backend
                 this.result = {
                     lines: response.data.lines || [],
                 };
             } catch (error) {
                 console.error("Error transcribing text:", error);
-                
                 this.result = {
                     lines: ["Error processing image."],
                 };
             }
         },
+        updateCanvasSize() {
+            const container = this.$el.querySelector('.canvas-container');
+            const maxWidth = Math.min(container.clientWidth - 20, 560); // 20px for padding
+            
+            // Set canvas size based on container width
+            this.canvasWidth = maxWidth;
+            this.canvasHeight = maxWidth / 2; // Maintain 2:1 aspect ratio
+            
+            // Update hidden canvas size
+            this.hiddenWidth = this.canvasWidth / this.SCALE_FACTOR;
+            this.hiddenHeight = this.canvasHeight / this.SCALE_FACTOR;
+            
+            // Reinitialize canvases with new sizes
+            this.$nextTick(() => {
+                this.initCanvas(this.$refs.displayCanvas);
+                this.initCanvas(this.$refs.hiddenCanvas);
+            });
+        },
     },
     mounted() {
+        this.updateCanvasSize();
+        window.addEventListener('resize', this.updateCanvasSize);
         this.initCanvas(this.$refs.displayCanvas);
         this.initCanvas(this.$refs.hiddenCanvas);
+    },
+    beforeDestroy() {
+        window.removeEventListener('resize', this.updateCanvasSize);
     },
 };
 </script>
@@ -155,44 +212,47 @@ export default {
 <style>
 .container {
     display: flex;
-    align-items: flex-start;
-    gap: 20px;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 10px;
 }
 
 .canvas-container {
+    width: 100%;
     display: flex;
     flex-direction: column;
     align-items: center;
-    position: relative;
 }
 
 canvas {
     border: 2px solid #3498db;
     border-radius: 5px;
     background-color: white;
-    width: 560px;
-    height: 280px;
-    image-rendering: pixelated;
-}
-
-canvas#displayCanvas {
-    cursor: crosshair;
+    touch-action: none;
+    max-width: 100%;
 }
 
 .buttons {
-    margin-top: 5px;
+    margin-top: 10px;
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    justify-content: center;
 }
 
 button {
-    padding: 8px 16px;
-    font-size: 0.9rem;
+    padding: 12px 24px;
+    font-size: 1rem;
     font-weight: bold;
     color: white;
     border: none;
     border-radius: 5px;
     cursor: pointer;
-    margin: 5px;
-    transition: background-color 0.2s ease;
+    touch-action: manipulation;
+    -webkit-tap-highlight-color: transparent;
 }
 
 button:first-of-type {
@@ -212,12 +272,13 @@ button:last-of-type:hover {
 }
 
 .result-box {
+    width: 100%;
+    margin-top: 20px;
     padding: 15px;
     background-color: #f9f9f9;
     border: 1px solid #ddd;
     border-radius: 5px;
     text-align: center;
-    min-width: 200px;
 }
 
 .result-box h3 {
@@ -226,20 +287,18 @@ button:last-of-type:hover {
     color: #333;
 }
 
-.result-box ul {
-    list-style: none;
-    padding: 0;
-    margin: 0;
-}
-
-.result-box li {
-    padding: 5px 0;
-    color: #2c3e50;
-    font-weight: 500;
-}
-
-.result-text {
-    font-weight: bold;
-    color: #3498db;
+@media (max-width: 600px) {
+    .container {
+        padding: 5px;
+    }
+    
+    button {
+        padding: 10px 20px;
+        font-size: 0.9rem;
+    }
+    
+    .result-box {
+        padding: 10px;
+    }
 }
 </style>
