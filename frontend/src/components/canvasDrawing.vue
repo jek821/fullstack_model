@@ -37,6 +37,7 @@ export default {
             HIDDEN_WIDTH: 280,
             HIDDEN_HEIGHT: 140,
             SCALE_FACTOR: 2,
+            PADDING: 20
         };
     },
     methods: {
@@ -44,6 +45,19 @@ export default {
             const ctx = canvas.getContext("2d");
             ctx.fillStyle = "white";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Add a subtle border to show the safe drawing area
+            if (canvas.id === 'displayCanvas') {
+                ctx.strokeStyle = '#f0f0f0';
+                ctx.lineWidth = 2;
+                ctx.strokeRect(
+                    this.PADDING, 
+                    this.PADDING, 
+                    canvas.width - (this.PADDING * 2), 
+                    canvas.height - (this.PADDING * 2)
+                );
+            }
+            
             ctx.lineWidth = 10;
             ctx.lineCap = "round";
             ctx.strokeStyle = "black";
@@ -59,11 +73,19 @@ export default {
             displayCtx.fillRect(0, 0, this.DISPLAY_WIDTH, this.DISPLAY_HEIGHT);
             hiddenCtx.fillRect(0, 0, this.HIDDEN_WIDTH, this.HIDDEN_HEIGHT);
 
+            // Redraw the safe area border
+            displayCtx.strokeStyle = '#f0f0f0';
+            displayCtx.lineWidth = 2;
+            displayCtx.strokeRect(
+                this.PADDING, 
+                this.PADDING, 
+                this.DISPLAY_WIDTH - (this.PADDING * 2), 
+                this.DISPLAY_HEIGHT - (this.PADDING * 2)
+            );
+
             this.result = {
                 lines: [],
             };
-
-            //console.log("Canvas cleared.");
         },
         startDrawing(event) {
             this.drawing = true;
@@ -98,31 +120,30 @@ export default {
             const hiddenCanvas = this.$refs.hiddenCanvas;
             const hiddenCtx = hiddenCanvas.getContext("2d");
 
-            //console.log("Scaling down the canvas...");
-            //console.log("Display canvas:", displayCanvas.width, displayCanvas.height);
-            //console.log("Hidden canvas:", hiddenCanvas.width, hiddenCanvas.height);
-
             // Clear hidden canvas
             hiddenCtx.fillStyle = "white";
             hiddenCtx.fillRect(0, 0, hiddenCanvas.width, hiddenCanvas.height);
 
-            // Scale down the display canvas to hidden canvas size
+            // Calculate the scaling ratios
+            const scaleX = this.HIDDEN_WIDTH / (this.DISPLAY_WIDTH - (this.PADDING * 2));
+            const scaleY = this.HIDDEN_HEIGHT / (this.DISPLAY_HEIGHT - (this.PADDING * 2));
+
+            // Scale down the display canvas to hidden canvas size, excluding the padding
             hiddenCtx.drawImage(
                 displayCanvas,
-                0, 0, displayCanvas.width, displayCanvas.height, // Source canvas size
-                0, 0, hiddenCanvas.width, hiddenCanvas.height // Destination canvas size
+                this.PADDING, this.PADDING, // Source x, y (start from padding)
+                this.DISPLAY_WIDTH - (this.PADDING * 2), // Source width minus padding
+                this.DISPLAY_HEIGHT - (this.PADDING * 2), // Source height minus padding
+                0, 0, // Destination x, y (use full hidden canvas)
+                this.HIDDEN_WIDTH, 
+                this.HIDDEN_HEIGHT
             );
-
-            // Log hidden canvas data
-            const imageData = hiddenCtx.getImageData(0, 0, hiddenCanvas.width, hiddenCanvas.height);
-            console.log("Hidden canvas non-white pixels:", imageData.data.some(pixel => pixel !== 255));
         },
         async transcribeText() {
             const hiddenCanvas = this.$refs.hiddenCanvas;
 
             // Convert the canvas to Base64
             const imageBase64 = hiddenCanvas.toDataURL("image/png").split(",")[1];
-            //console.log("Generated Base64 Image:", imageBase64);
 
             try {
                 // Send the Base64 image to the backend
@@ -136,23 +157,16 @@ export default {
                     }
                 );
 
-                //console.log("Backend response:", response.data);
-
                 // Update result based on the response from the backend
                 this.result = {
                     lines: response.data.lines || [],
                 };
-
-                //console.log("Updated result state:", this.result);
             } catch (error) {
                 console.error("Error transcribing text:", error);
-
                 
                 this.result = {
                     lines: ["Error processing image."],
                 };
-
-                //console.log("Updated result state (error):", this.result);
             }
         },
     },
@@ -174,6 +188,7 @@ export default {
     display: flex;
     flex-direction: column;
     align-items: center;
+    position: relative;
 }
 
 canvas {
@@ -183,6 +198,10 @@ canvas {
     width: 560px;
     height: 280px;
     image-rendering: pixelated;
+}
+
+canvas#displayCanvas {
+    cursor: crosshair;
 }
 
 .buttons {
@@ -198,6 +217,7 @@ button {
     border-radius: 5px;
     cursor: pointer;
     margin: 5px;
+    transition: background-color 0.2s ease;
 }
 
 button:first-of-type {
@@ -217,17 +237,30 @@ button:last-of-type:hover {
 }
 
 .result-box {
-    padding: 10px;
+    padding: 15px;
     background-color: #f9f9f9;
     border: 1px solid #ddd;
     border-radius: 5px;
     text-align: center;
+    min-width: 200px;
 }
 
 .result-box h3 {
-    margin: 0 0 5px;
-    font-size: 1rem;
+    margin: 0 0 10px;
+    font-size: 1.1rem;
     color: #333;
+}
+
+.result-box ul {
+    list-style: none;
+    padding: 0;
+    margin: 0;
+}
+
+.result-box li {
+    padding: 5px 0;
+    color: #2c3e50;
+    font-weight: 500;
 }
 
 .result-text {
